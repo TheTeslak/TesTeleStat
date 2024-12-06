@@ -1,21 +1,23 @@
-# -------------------------
-# Settings
-# -------------------------
+# Name of the main file for analysis. Typically, this would be a Telegram export JSON.
+input_file = 'result.json'
 
-input_file = 'result.json'  # Name of the main file for analysis
+# Folder containing JSON files for merging. If '', the current directory is used.
+# Useful when the export is split into multiple parts like result1.json, result2.json, etc.
+merge_folder = ''
 
-merge_folder = ''  # Folder containing JSON files for merging; leave as '' to use the current directory
+# Output filename pattern: <chat_name> and <timestamp> will be replaced automatically.
+output_filename_pattern = '<chat_name>_<timestamp>.txt'
 
-# Output filename pattern
-output_filename_pattern = '<chat_name>_<timestamp>.txt'  # Output report filename; <chat_name> will be replaced with chat name
+# Choose stop words type: 'minimal' or 'extended'. This affects word frequency analysis.
+stop_words_type = 'minimal'
 
-# List of stop words to exclude from frequent words analysis
-stop_words_type = 'minimal'  # 'minimal' or 'extended'
+# top_participants_count = None means show all participants. If it's a number, limit to that many.
+top_participants_count = None
 
-top_participants_count = None  # Set to None to display all participants
-top_words_count = 100  # Number of top words to display
-top_phrases_count = 100  # Number of top phrases to display
+top_words_count = 100
+top_phrases_count = 100
 
+# Emojis to mark sections in the report. These are optional cosmetic enhancements.
 emojis = {
     'title': '💬',
     'participant': '👥',
@@ -41,14 +43,17 @@ emojis = {
     'poll': '📊',
 }
 
-top_days_count = 10  # Number of most active days to display
+# Number of top days to show in "Most active days" section.
+top_days_count = 10
 
-show_non_consecutive_counts = True  # Display messages non-consecutively in the report
+# Whether to display non-consecutive message counts (counts where user changed, resetting the chain).
+show_non_consecutive_counts = True
 
-exclude_bots = True  # Whether to exclude bots from analysis
-bot_identifiers = ['Bot']  # Strings to identify bots
+# Whether to exclude bots from analysis. Useful if you don't want bot messages skewing stats.
+exclude_bots = True
+bot_identifiers = ['Bot']
 
-# Day names and month names in Russian and English
+# Day and month names for different locales. The analyzer will choose the array based on selected language.
 day_names = {
     'ru': ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'],
     'en': ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -58,38 +63,39 @@ month_names = {
     'en': ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 }
 
-# Command prefixes (e.g., '/')
+# Commands often start with '/', like Telegram bot commands. Adjust if needed.
 commands_identifiers = ['/']
 
-# Regular expression to find emojis
 import re
-emoji_pattern = re.compile("["
-                           u"\U0001F600-\U0001F64F"  # Emoticons
-                           u"\U0001F300-\U0001F5FF"  # Symbols & Pictographs
-                           u"\U0001F680-\U0001F6FF"  # Transport & Map
-                           u"\U0001F1E0-\U0001F1FF"  # Flags
-                           u"\U0001F900-\U0001F9FF"  # Supplemental Symbols and Pictographs
-                           u"\U0001FA70-\U0001FAFF"  # Symbols and Pictographs Extended-A
-                           u"\U00002702-\U000027B0"  # Dingbats
-                           u"\U000024C2-\U0001F251"  # Enclosed characters
+emoji_pattern = re.compile("[" 
+                           u"\U0001F600-\U0001F64F"
+                           u"\U0001F300-\U0001F5FF"
+                           u"\U0001F680-\U0001F6FF"
+                           u"\U0001F1E0-\U0001F1FF"
+                           u"\U0001F900-\U0001F9FF"
+                           u"\U0001FA70-\U0001FAFF"
+                           u"\U00002702-\U000027B0"
+                           u"\U000024C2-\U0001F251"
                            "]+", flags=re.UNICODE)
 
-# Regular expression to find URLs
 url_pattern = re.compile(
-    r'(?i)\b((?:https?:\/\/|www\d{0,3}[.]|telegram[.]me\/|t[.]me\/|[a-z0-9.\-]+[.][a-z]{2,4}\/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+)', re.IGNORECASE)
+    r'(?i)\b((?:https?:\/\/|www\d{0,3}[.]|telegram[.]me\/|t[.]me\/|[a-z0-9.\-]+[.][a-z]{2,4}\/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+)',
+    re.IGNORECASE)
 
-show_author_links = True  # Set to False to disable displaying author links
+# If True, author links (GitHub, Telegram channel) will be shown at the end of the report.
+show_author_links = True
 
-show_user_links = False  # False by default
+# If True, links to user profiles are shown for participants (tg://openmessage?user_id=...).
+show_user_links = False
 
-first_message_interval_hours = 1  # Default interval in hours to consider who wrote first
+# After this interval (in hours), the personal chat "first sender" calculation resets.
+first_message_interval_hours = 1
 
-words_dir = 'words'  # Directory where stop words and profanity lists are stored
+# Directory containing word lists such as stop words or profanity words.
+words_dir = 'words'
 
-time_offset = 0  # Time offset in hours to adjust message timestamps
+# Time offset in hours to adjust timestamps if your data is in a different timezone than desired.
+time_offset = 0
 
-plot_non_consecutive_messages = False  # Default behavior is to plot based on total messages
-
-# -------------------------
-# End of Settings
-# -------------------------
+# If True, when plotting personal chat data, non-consecutive messages are used instead of total counts.
+plot_non_consecutive_messages = False

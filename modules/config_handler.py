@@ -1,9 +1,9 @@
 def configure_in_console(config, current_texts, is_personal_chat):
-    """Configure settings in the console, adjusting for chat type."""
+    # This function allows user-interactive configuration of analysis parameters at runtime.
+    # Useful if the user wants to override defaults without editing config.py directly.
     temp_config = {}
     print(current_texts['configuring_settings'])
 
-    # Time offset prompt
     time_offset_default = getattr(config, 'time_offset', 0)
     time_offset_prompt = current_texts.get('time_offset_prompt', "Enter time offset in hours (default {default}): ").format(default=time_offset_default)
     time_offset_input = input(time_offset_prompt).strip()
@@ -15,9 +15,8 @@ def configure_in_console(config, current_texts, is_personal_chat):
     else:
         temp_config['time_offset'] = time_offset_default
 
-    # Configurations specific to personal chats
+    # If personal chat, allow configuring interval for identifying the "first sender" after breaks.
     if is_personal_chat:
-        # Configurable interval for 'who wrote first'
         interval_prompt = current_texts.get('first_message_interval_prompt', "After what interval (in hours) to consider who wrote first? (default {default}): ").format(default=getattr(config, 'first_message_interval_hours', 1))
         interval_input = input(interval_prompt).strip()
         if interval_input:
@@ -28,14 +27,13 @@ def configure_in_console(config, current_texts, is_personal_chat):
         else:
             temp_config['first_message_interval_hours'] = getattr(config, 'first_message_interval_hours', 1)
 
-        # Option to choose plotting behavior
+        # Option to plot data based on non-consecutive messages in personal chats.
         plot_non_consecutive_default = getattr(config, 'plot_non_consecutive_messages', False)
         plot_non_consecutive_prompt = current_texts.get('plot_non_consecutive_prompt', "Plot based on non-consecutive messages? (y/n, default {default}): ").format(
             default='Yes' if plot_non_consecutive_default else 'No')
         plot_non_consecutive_input = input(plot_non_consecutive_prompt).strip().lower()
         temp_config['plot_non_consecutive_messages'] = plot_non_consecutive_input == 'y' or plot_non_consecutive_input == 'д' or (plot_non_consecutive_input == '' and plot_non_consecutive_default)
 
-    # Choose stop words type
     stop_words_default = getattr(config, 'stop_words_type', 'minimal')
     stop_words_options = current_texts.get('stop_words_options', "Choose stop words list (1-minimal, 2-extended, default {default}): ")
     stop_words_prompt = stop_words_options.format(default=stop_words_default)
@@ -47,7 +45,6 @@ def configure_in_console(config, current_texts, is_personal_chat):
     else:
         temp_config['stop_words_type'] = stop_words_default
 
-    # Common configurations
     top_words_count_prompt = current_texts.get('top_words_count_prompt', "Number of top words to display (default {default}): ").format(default=config.top_words_count)
     top_words_count = input(top_words_count_prompt).strip()
     temp_config['top_words_count'] = int(top_words_count) if top_words_count.isdigit() else config.top_words_count
@@ -56,7 +53,7 @@ def configure_in_console(config, current_texts, is_personal_chat):
     top_phrases_count = input(top_phrases_count_prompt).strip()
     temp_config['top_phrases_count'] = int(top_phrases_count) if top_phrases_count.isdigit() else config.top_phrases_count
 
-    # Configurations specific to group chats
+    # In group chats, additional configuration:
     if not is_personal_chat:
         exclude_bots_prompt = current_texts.get('exclude_bots_prompt', "Exclude bots? (y/n, default {default}): ").format(default='Yes' if config.exclude_bots else 'No')
         exclude_bots = input(exclude_bots_prompt).strip().lower()
@@ -74,7 +71,7 @@ def configure_in_console(config, current_texts, is_personal_chat):
         show_user_links = input(show_user_links_prompt).strip().lower()
         temp_config['show_user_links'] = show_user_links != 'n' and show_user_links != 'н'
 
-    # Copy other configurations
+    # Copy remaining settings from original config.
     temp_config['input_file'] = config.input_file
     temp_config['merge_folder'] = config.merge_folder
     temp_config['output_filename_pattern'] = config.output_filename_pattern
@@ -89,14 +86,10 @@ def configure_in_console(config, current_texts, is_personal_chat):
     temp_config['emojis'] = config.emojis
     temp_config['words_dir'] = config.words_dir
 
-    if is_personal_chat:
-        temp_config.setdefault('first_message_interval_hours', getattr(config, 'first_message_interval_hours', 1))
-        temp_config.setdefault('plot_non_consecutive_messages', getattr(config, 'plot_non_consecutive_messages', False))
-
     return temp_config
 
 def save_config_to_file(temp_config):
-    """Save the temporary configuration to a new file."""
+    # Saves the new configuration to confignew.py, allowing the user to persist changed settings.
     with open('confignew.py', 'w', encoding='utf-8') as f:
         for key, value in temp_config.items():
             if isinstance(value, str):

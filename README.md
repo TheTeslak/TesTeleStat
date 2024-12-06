@@ -1,6 +1,6 @@
 # Telegram Chat Analysis
 
-![Version](https://img.shields.io/badge/Version-1.1-brightgreen.svg) ![Python](https://img.shields.io/badge/Python-3.x-blue.svg) ![JSON](https://img.shields.io/badge/JSON-Compatible-orange.svg)  
+![Version](https://img.shields.io/badge/Version-1.2-brightgreen.svg) ![Python](https://img.shields.io/badge/Python-3.x-blue.svg) ![JSON](https://img.shields.io/badge/JSON-Compatible-orange.svg)  
 
 ## 📚 Navigation / Навигация
 - [English](#english)
