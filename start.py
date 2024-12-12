@@ -140,11 +140,11 @@ def main():
                     start_date = datetime.datetime.strptime(start_str.strip(), "%d.%m.%Y")
                     end_date = datetime.datetime.strptime(end_str.strip(), "%d.%m.%Y")
                     if end_date < start_date:
-                        print(current_texts.get('invalid_date_range', 'Invalid date range format.'))
+                        print(current_texts.get('invalid_date_range', 'Invalid date range format, napisal huinyu.'))
                         start_date = None
                         end_date = None
                 except:
-                    print(current_texts.get('invalid_date_range', 'Invalid date range format.'))
+                    print(current_texts.get('invalid_date_range', 'Invalid date range format, napisal huinyu.'))
                     start_date = None
                     end_date = None
 
