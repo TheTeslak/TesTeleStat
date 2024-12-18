@@ -1,4 +1,5 @@
 import json
+from collections import Counter
 
 def format_number(number):
     s = str(int(number))
@@ -9,44 +10,26 @@ def format_number(number):
     return ' '.join(parts)
 
 def generate_text_report(analysis_results, config, current_texts, output_filename, author_github_link, author_telegram_channel, is_personal_chat):
-    # Generates a human-readable TXT report with statistics.
-    # Includes day and month localization and various activity metrics.
-
-    # day_localization checks if we have localized day/month names in current_texts for language switching.
-    day_localization = ('day_names' in current_texts
-                        and isinstance(current_texts['day_names'], dict)
-                        and 'ru' in current_texts['day_names']
-                        and len(current_texts['day_names']['ru']) > 0)
-    month_localization = ('month_names' in current_texts
-                          and isinstance(current_texts['month_names'], dict)
-                          and 'ru' in current_texts['month_names']
-                          and len(current_texts['month_names']['ru']) > 0)
-
-    if day_localization and month_localization:
-        # Determine which language's arrays to use as target localization.
-        # If 'en' available, use that for English; else fallback to the first available set.
-        lang_keys = list(current_texts['day_names'].keys())
-        current_lang = 'en' if 'en' in lang_keys else lang_keys[0]
-        ru_days = current_texts['day_names']['ru']
-        ru_months = current_texts['month_names']['ru']
-        target_days = current_texts['day_names'].get(current_lang, ru_days)
-        target_months = current_texts['month_names'].get(current_lang, ru_months)
-    else:
-        ru_days = []
-        ru_months = []
-        target_days = []
-        target_months = []
+    day_localization = ('day_names' in current_texts and isinstance(current_texts['day_names'], dict) and 'ru' in current_texts['day_names'] and len(current_texts['day_names']['ru']) > 0)
+    month_localization = ('month_names' in current_texts and isinstance(current_texts['month_names'], dict) and 'ru' in current_texts['month_names'] and len(current_texts['month_names']['ru']) > 0)
 
     def localize_day(d):
-        # Translate Russian day to target language if needed.
-        if day_localization and d in ru_days:
-            idx = ru_days.index(d)
-            return target_days[idx]
+        if day_localization:
+            ru_days = current_texts['day_names']['ru']
+            lang_keys = list(current_texts['day_names'].keys())
+            current_lang = 'en' if 'en' in lang_keys else lang_keys[0]
+            target_days = current_texts['day_names'].get(current_lang, ru_days)
+            if d in ru_days:
+                idx = ru_days.index(d)
+                return target_days[idx]
         return d
 
     def localize_month(m):
-        # Translate Russian month to target language if needed.
         if month_localization:
+            ru_months = current_texts['month_names']['ru']
+            lang_keys = list(current_texts['month_names'].keys())
+            current_lang = 'en' if 'en' in lang_keys else lang_keys[0]
+            target_months = current_texts['month_names'].get(current_lang, ru_months)
             parts = m.split()
             if len(parts) == 2:
                 month_ru = parts[0]
@@ -56,62 +39,71 @@ def generate_text_report(analysis_results, config, current_texts, output_filenam
                     return f"{target_months[m_idx].capitalize()} {year_str}"
         return m
 
-    with open(output_filename, 'w', encoding='utf-8') as f:
-        first_date = analysis_results['first_date']
-        last_date = analysis_results['last_date']
-        date_range_str = ''
-        if first_date and last_date:
-            period_label = current_texts.get('date_range_for', 'for the period')
+    first_date = analysis_results.get('first_date', None)
+    last_date = analysis_results.get('last_date', None)
+    date_range_str = ''
+    if first_date and last_date:
+        period_label = current_texts.get('date_range_for', '')
+        if period_label:
             date_range_str = f"{period_label}: {first_date.strftime('%d.%m.%Y')} – {last_date.strftime('%d.%m.%Y')}"
-        chat_name = analysis_results.get('chat_name', 'Chat Name')
-        f.write(f"Статистика чата \"{chat_name}\" {date_range_str}\n\n")
-
-        total_msgs_formatted = format_number(analysis_results['total_messages'])
-        total_symbols_formatted = format_number(analysis_results['total_symbols'])
-        avg_message_length = analysis_results['avg_message_length']
-        show_non_consecutive = config.get('show_non_consecutive_counts', True)
-
-        if show_non_consecutive:
-            ncm = format_number(analysis_results['total_non_consecutive_messages'])
-            ncs = format_number(analysis_results['total_non_consecutive_symbols'])
-            f.write(
-                f"{config['emojis'].get('messages','')} {current_texts['messages'].capitalize()}: {total_msgs_formatted} "
-                f"({ncm} {current_texts.get('non_consecutive', 'not consecutive')})\n"
-            )
-            f.write(
-                f"{config['emojis'].get('symbols','')} {current_texts.get('symbols', 'symbols').capitalize()}: {total_symbols_formatted} "
-                f"({ncs} {current_texts.get('non_consecutive', 'not consecutive')})\n"
-            )
         else:
-            f.write(
-                f"{config['emojis'].get('messages','')} {current_texts['messages'].capitalize()}: {total_msgs_formatted}\n"
-            )
-            f.write(
-                f"{config['emojis'].get('symbols','')} {current_texts.get('symbols', 'symbols').capitalize()}: {total_symbols_formatted}\n"
-            )
+            date_range_str = f"{first_date.strftime('%d.%m.%Y')} – {last_date.strftime('%d.%m.%Y')}"
 
-        f.write(
-            f"{config['emojis'].get('avg_symbols','')} {current_texts.get('avg_symbols_in_message', 'Symbols per message')}: {avg_message_length:.0f}\n\n"
-        )
+    chat_name = analysis_results.get('chat_name', current_texts.get('no_name','Name'))
+    chat_type = analysis_results.get('type', 'group')
+
+    if 'channel' in chat_type:
+        title_line = current_texts['channel_statistics'].format(chat_name, date_range_str)
+    else:
+        title_line = current_texts['chat_statistics'].format(chat_name, date_range_str)
+
+    author_post_count = analysis_results.get('author_post_count', Counter())
+    posts_by_date = analysis_results.get('posts_by_date', {})
+
+    with open(output_filename, 'w', encoding='utf-8') as f:
+        f.write(title_line + "\n\n")
+        f.write(current_texts['chat_name_label'] + " " + chat_name + "\n")
+        f.write(current_texts['type_label'] + " " + chat_type + "\n\n")
+
+        total_msgs = analysis_results['total_messages']
+        total_symbols = analysis_results['total_symbols']
+        avg_message_length = analysis_results['avg_message_length']
+
+        f.write(config['emojis']['messages'] + " " + current_texts['messages_label'].format(format_number(total_msgs)) + "\n")
+        f.write(config['emojis']['symbols'] + " " + current_texts['symbols_label'].format(format_number(total_symbols)) + "\n")
+        f.write(config['emojis']['avg_symbols'] + " " + current_texts['average_message_length'] + f": {avg_message_length:.0f}\n\n")
 
         mc = analysis_results['message_counts']
-        f.write(f"{config['emojis'].get('pictures','')} {current_texts.get('pictures', 'Pictures')}: {format_number(mc['picture'])}\n")
-        f.write(f"{config['emojis'].get('videos','')} {current_texts.get('videos', 'Videos')}: {format_number(mc['video'])}\n")
-        f.write(f"{config['emojis'].get('files','')} {current_texts.get('files', 'Files')}: {format_number(mc['file'])}\n")
-        f.write(f"{config['emojis'].get('audios','')} {current_texts.get('audios', 'Audios')}: {format_number(mc['audio'])}\n")
-        f.write(f"{config['emojis'].get('links','')} {current_texts.get('links', 'Links')}: {format_number(mc['links'])}\n")
-        f.write(f"{config['emojis'].get('voice','')} {current_texts.get('voice_messages', 'Voice messages')}: {format_number(mc['voice_message'])}\n")
-        f.write(f"{config['emojis'].get('gif','')} GIF: {format_number(mc['gif'])}\n")
-        f.write(f"{config['emojis'].get('sticker','')} {current_texts.get('stickers', 'Stickers')}: {format_number(mc['sticker'])}\n")
-        f.write(f"{config['emojis'].get('emoji','')} {current_texts.get('emojis', 'Emojis')}: {format_number(mc['emojis'])}\n")
-        f.write(f"{config['emojis'].get('poll','')} {current_texts.get('polls', 'Polls')}: {format_number(mc['poll'])}\n")
-        f.write(f"{config['emojis'].get('command','')} {current_texts.get('commands', 'Commands')}: {format_number(mc['commands'])}\n")
-        f.write(f"{config['emojis'].get('profanity','')} {current_texts.get('profanity_messages', 'Messages with profanity')}: {format_number(mc['profanity'])}\n\n")
+        f.write(config['emojis'].get('pictures','') + " " + current_texts['pictures'] + ": " + format_number(mc['picture']) + "\n")
+        f.write(config['emojis'].get('videos','') + " " + current_texts['videos'] + ": " + format_number(mc['video']) + "\n")
+        f.write(config['emojis'].get('files','') + " " + current_texts['files'] + ": " + format_number(mc['file']) + "\n")
+        f.write(config['emojis'].get('audios','') + " " + current_texts['audios'] + ": " + format_number(mc['audio']) + "\n")
+        f.write(config['emojis'].get('links','') + " " + current_texts['links'] + ": " + format_number(mc['links']) + "\n")
+        f.write(config['emojis'].get('voice','') + " " + current_texts['voice_messages'] + ": " + format_number(mc['voice_message']) + "\n")
+        f.write(config['emojis'].get('gif','') + " GIF: " + format_number(mc['gif']) + "\n")
+        f.write(config['emojis'].get('sticker','') + " " + current_texts['stickers'] + ": " + format_number(mc['sticker']) + "\n")
+        f.write(config['emojis'].get('emoji','') + " " + current_texts['emojis'] + ": " + format_number(mc['emojis']) + "\n")
+        f.write(config['emojis'].get('poll','') + " " + current_texts['polls'] + ": " + format_number(mc['poll']) + "\n")
+        f.write(config['emojis'].get('command','') + " " + current_texts['commands'] + ": " + format_number(mc['commands']) + "\n")
+        f.write(config['emojis'].get('profanity','') + " " + current_texts['profanity_messages'] + ": " + format_number(mc['profanity']) + "\n\n")
 
-        or_word = current_texts.get('or_word', 'or')
+        if 'channel' in chat_type:
+            if author_post_count:
+                f.write(current_texts['authors_by_posts'] + "\n")
+                top_authors = author_post_count.most_common()
+                for author, count in top_authors:
+                    f.write(f"{author}: {format_number(count)}\n")
+                f.write("\n")
 
-        if is_personal_chat:
-            # For personal chats, show which user wrote more messages.
+            if posts_by_date:
+                f.write(current_texts['posts_by_month_and_author'] + "\n")
+                for month, authors_cnt in posts_by_date.items():
+                    f.write(f"{month}:\n")
+                    for author, cnt in authors_cnt.items():
+                        f.write(f"  {author}: {format_number(cnt)}\n")
+                f.write("\n")
+
+        if chat_type == 'personal_chat':
             participants = list(analysis_results['user_counts'].keys())
             if len(participants) == 2:
                 u_counts = analysis_results['user_counts']
@@ -121,55 +113,50 @@ def generate_text_report(analysis_results, config, current_texts, output_filenam
                 c2 = u_counts[user2]
                 nc1 = ncc[user1]
                 nc2 = ncc[user2]
+                if 'personal_chat_stats' in current_texts:
+                    stats_str = current_texts['personal_chat_stats'].format(
+                        user1,
+                        format_number(c1),
+                        format_number(nc1),
+                        user2,
+                        format_number(c2),
+                        format_number(nc2)
+                    )
+                    f.write(stats_str + "\n")
 
-                personal_stats_str = current_texts['personal_chat_stats'].format(
-                    user1,
-                    format_number(c1),
-                    format_number(nc1),
-                    user2,
-                    format_number(c2),
-                    format_number(nc2)
-                )
-                f.write(personal_stats_str + "\n")
-
-                total_symbols = analysis_results['total_symbols']
-                # Estimate reading time based on symbol count. 1000 symbols ~ 60 seconds reading time approx.
-                total_reading_seconds = (total_symbols / 1000) * 60
+                total_symbols_all = analysis_results['total_symbols']
+                total_reading_seconds = (total_symbols_all / 1000) * 60
                 total_reading_minutes = int(total_reading_seconds / 60)
                 total_reading_hours = int(total_reading_minutes / 60)
                 total_reading_days = total_reading_hours / 24
                 days_part = ""
                 if total_reading_days >= 1:
                     days_part = current_texts['days'].format(f"{total_reading_days:.2f}")
-
-                reading_time_str = current_texts['reading_time_estimate'].format(
+                read_str = current_texts['reading_time_estimate'].format(
                     int(total_reading_seconds),
                     total_reading_minutes,
                     total_reading_hours,
                     days_part
                 )
-                f.write("\n" + reading_time_str + "\n")
-            else:
-                f.write("Unexpected number of participants in personal chat.\n")
-        else:
+                f.write("\n" + read_str + "\n")
+        elif 'channel' not in chat_type:
             p_emoji = config['emojis'].get('participant', '')
-            top_participants_title = current_texts.get('top_participants', 'Top participants')
-            f.write(f"{p_emoji} {top_participants_title}:\n")
+            f.write(p_emoji + " " + current_texts['top_participants'] + ":\n")
             sorted_users = analysis_results['user_counts'].most_common(config.get('top_participants_count'))
             rank = 1
             show_links = config.get('show_user_links', False)
-            for user, ucount in sorted_users:
+            for user, ucount in (sorted_users if sorted_users else []):
                 non_consecutive_count = analysis_results['non_consecutive_counts'][user]
                 symbols_val = analysis_results['user_symbols'][user]
                 non_consecutive_symbols_val = analysis_results['non_consecutive_symbols'][user]
                 user_id = analysis_results['user_ids'].get(user, '')
-                if show_non_consecutive:
+                if config.get('show_non_consecutive_counts', True):
                     if show_links and user_id:
                         f.write(f"{rank}. {user} (tg://openmessage?user_id={user_id}):\n")
                     else:
                         f.write(f"{rank}. {user}:\n")
                     f.write(
-                        f"—— {format_number(ucount)} · {format_number(symbols_val)} {or_word} "
+                        f"—— {format_number(ucount)} · {format_number(symbols_val)} {current_texts.get('or_word','or')} "
                         f"({format_number(non_consecutive_count)}) · ({format_number(non_consecutive_symbols_val)})\n"
                     )
                 else:
@@ -181,105 +168,112 @@ def generate_text_report(analysis_results, config, current_texts, output_filenam
                 rank += 1
             f.write("\n")
 
-            invite_top_text = current_texts['invite_top']
-            invite_counts = analysis_results['invite_counts']
-            if invite_counts:
-                f.write(f"{invite_top_text}:\n")
-                sorted_invites = invite_counts.most_common()
+        else:
+            top_emojis = analysis_results['top_emojis']
+            if top_emojis:
+                f.write(current_texts['top_reactions'] + "\n")
                 rank = 1
-                for inviter, inv_count in sorted_invites:
-                    inviter_id = analysis_results['user_ids'].get(inviter, '')
-                    if show_links and inviter_id:
-                        f.write(
-                            f"{rank}. {inviter} (tg://openmessage?user_id={inviter_id}): "
-                            f"{format_number(inv_count)} приглашений\n"
-                        )
-                    else:
-                        f.write(f"{rank}. {inviter}: {format_number(inv_count)} приглашений\n")
+                for emoji, count in top_emojis:
+                    f.write(f"{rank}. {emoji}: {format_number(count)}\n")
+                    rank += 1
+                f.write("\n")
+
+            top_posts = analysis_results['top_posts_by_reactions']
+            if top_posts:
+                f.write(current_texts['top_posts_by_reactions'] + "\n")
+                rank = 1
+                for mid, rcount in top_posts[:10]:
+                    f.write(f"{rank}. message_id {mid}: {format_number(rcount)}\n")
                     rank += 1
                 f.write("\n")
 
         w_emoji = config['emojis'].get('word', '')
-        top_words_text = current_texts.get('top_words', 'Top words')
-        f.write(f"{w_emoji} {top_words_text}:\n")
+        f.write(w_emoji + " " + current_texts['top_words'] + ":\n")
         rank = 1
         for wval, freq in analysis_results['common_words']:
-            times_text = current_texts.get('times', 'times')
-            f.write(f"{rank}. {wval}: {format_number(freq)} {times_text}\n")
+            f.write(f"{rank}. {wval}: {format_number(freq)}\n")
             rank += 1
         f.write("\n")
 
         ph_emoji = config['emojis'].get('phrase', '')
-        top_phrases_text = current_texts.get('top_phrases', 'Top phrases')
-        f.write(f"{ph_emoji} {top_phrases_text}:\n")
+        f.write(ph_emoji + " " + current_texts['top_phrases'] + ":\n")
         rank = 1
         for phrase, freq in analysis_results['common_phrases']:
-            times_text = current_texts.get('times', 'times')
-            f.write(f"{rank}. {phrase}: {format_number(freq)} {times_text}\n")
+            f.write(f"{rank}. {phrase}: {format_number(freq)}\n")
             rank += 1
         f.write("\n")
 
         a_emoji = config['emojis'].get('activity', '')
-        activity_text = current_texts.get('activity', 'Activity')
-        f.write(f"{a_emoji} {activity_text}:\n")
+        f.write(a_emoji + " " + current_texts['activity'] + ":\n")
         activity_data = analysis_results['activity']
-
-        # Activity by hours.
         hours_str = ', '.join([
             f"{config['emojis'].get('list_item', '')} {hour}:00–{hour}:59"
             for hour, _ in activity_data['hours']
         ])
         f.write(hours_str + "\n")
 
-        # Activity by weekdays, localized if possible.
         localized_weekdays = []
-        for weekday, _ in activity_data['weekdays']:
-            if day_localization and weekday in ru_days:
-                idx = ru_days.index(weekday)
-                localized_weekdays.append(f"{config['emojis'].get('list_item', '')} {target_days[idx]}")
-            else:
+        if day_localization:
+            ru_days = current_texts['day_names']['ru']
+            lang_keys = list(current_texts['day_names'].keys())
+            current_lang = 'en' if 'en' in lang_keys else lang_keys[0]
+            target_days = current_texts['day_names'].get(current_lang, ru_days)
+            for weekday, _ in activity_data['weekdays']:
+                if weekday in ru_days:
+                    idx = ru_days.index(weekday)
+                    localized_weekdays.append(f"{config['emojis'].get('list_item', '')} {target_days[idx]}")
+                else:
+                    localized_weekdays.append(f"{config['emojis'].get('list_item', '')} {weekday}")
+        else:
+            for weekday, _ in activity_data['weekdays']:
                 localized_weekdays.append(f"{config['emojis'].get('list_item', '')} {weekday}")
         f.write(', '.join(localized_weekdays) + "\n")
 
-        # Activity by months, localized if possible.
         localized_months = []
-        for m, _ in activity_data['months']:
-            parts = m.split()
-            if month_localization and len(parts) == 2:
-                month_ru = parts[0]
-                year_str = parts[1]
-                if month_ru in ru_months:
-                    m_idx = ru_months.index(month_ru)
-                    localized_months.append(f"{config['emojis'].get('list_item', '')} {target_months[m_idx].capitalize()} {year_str}")
+        if month_localization:
+            ru_months = current_texts['month_names']['ru']
+            lang_keys = list(current_texts['month_names'].keys())
+            current_lang = 'en' if 'en' in lang_keys else lang_keys[0]
+            target_months = current_texts['month_names'].get(current_lang, ru_months)
+            for m, _ in activity_data['months']:
+                parts = m.split()
+                if len(parts) == 2:
+                    month_ru = parts[0]
+                    year_str = parts[1]
+                    if month_ru in ru_months:
+                        m_idx = ru_months.index(month_ru)
+                        localized_months.append(f"{config['emojis'].get('list_item', '')} {target_months[m_idx].capitalize()} {year_str}")
+                    else:
+                        localized_months.append(f"{config['emojis'].get('list_item', '')} {m}")
                 else:
                     localized_months.append(f"{config['emojis'].get('list_item', '')} {m}")
-            else:
+        else:
+            for m, _ in activity_data['months']:
                 localized_months.append(f"{config['emojis'].get('list_item', '')} {m}")
         f.write(', '.join(localized_months) + "\n")
 
-        # Activity by years.
         years_str = ', '.join([
             f"{config['emojis'].get('list_item', '')} {year}"
             for year, _ in activity_data['years']
         ])
         f.write(years_str + "\n\n")
 
-        mad_text = current_texts.get('most_active_days', 'Most active days')
-        f.write(f"{a_emoji} {mad_text}:\n")
+        mad_text = current_texts['most_active_days']
+        f.write(a_emoji + " " + mad_text + ":\n")
+        ds = analysis_results.get('date_symbols', {})
         rank = 1
-        ds = analysis_results['date_symbols']
         for date_val, msg_count in analysis_results['top_days']:
-            symbol_count = ds[date_val]
+            symbol_count = ds.get(date_val,0)
             avg_len = symbol_count / msg_count if msg_count else 0
             date_str = date_val.strftime('%d.%m.%Y')
             f.write(
-                f"{rank}. {date_str}: ✉️ {format_number(msg_count)}, "
-                f"🔣 {format_number(symbol_count)}, 💬 {avg_len:.1f}\n"
+                f"{rank}. {date_str}: {config['emojis'].get('messages','')} {format_number(msg_count)}, "
+                f"{config['emojis'].get('symbols','')} {format_number(symbol_count)}, {config['emojis'].get('avg_symbols','')} {avg_len:.1f}\n"
             )
             rank += 1
         f.write("\n")
 
-        if analysis_results['creator_name'] and analysis_results['creator_id']:
+        if analysis_results.get('creator_name') and analysis_results.get('creator_id'):
             creator_info_str = current_texts['creator_info'].format(
                 analysis_results['creator_name'],
                 analysis_results['creator_id']
@@ -292,7 +286,6 @@ def generate_text_report(analysis_results, config, current_texts, output_filenam
             f.write('\n⚡️\n')
 
 def generate_json_report(analysis_results, json_output_filename):
-    # Currently only a placeholder. Could be expanded to export structured JSON with stats.
     json_output_data = {}
     with open(json_output_filename, 'w', encoding='utf-8') as jf:
         json.dump(json_output_data, jf, ensure_ascii=False, indent=4)

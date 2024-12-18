@@ -78,10 +78,6 @@ emoji_pattern = re.compile("["
                            u"\U000024C2-\U0001F251"
                            "]+", flags=re.UNICODE)
 
-url_pattern = re.compile(
-    r'(?i)\b((?:https?:\/\/|www\d{0,3}[.]|telegram[.]me\/|t[.]me\/|[a-z0-9.\-]+[.][a-z]{2,4}\/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+)',
-    re.IGNORECASE)
-
 # If True, author links (GitHub, Telegram channel) will be shown at the end of the report.
 show_author_links = True
 

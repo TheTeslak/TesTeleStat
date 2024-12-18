@@ -7,18 +7,18 @@ import locale
 
 import config
 from modules.data_loader import load_json_file_streaming, merge_json_files
-from modules.analyzer import analyze_messages
+from modules.analyzer_common import load_json_header
+from modules.analyzer_chats import analyze_messages as analyze_chats
+from modules.analyzer_channels import analyze_channel
 from modules.report_generator import generate_text_report, generate_json_report
 from modules.visualization import generate_personal_chat_plots, generate_group_chat_plots
 from modules.config_handler import configure_in_console, save_config_to_file
 
 def main():
-    author_github_link = 'https://github.com/TheTeslak/TesChatStat'
+    author_github_link = 'https://github.com/TheTeslak/TesTeleStat'
     author_telegram_channel = 'https://t.me/TesNot'
-    version = "Version 1.2"
+    version = "Version 1.3"
 
-    # Attempt to detect system locale to choose a suitable initial language.
-    # If we cannot detect it, fallback to English.
     try:
         locale.setlocale(locale.LC_ALL, '')
         system_lang, encoding = locale.getlocale()
@@ -33,7 +33,6 @@ def main():
             lang_code = os.path.splitext(filename)[0]
             available_languages.append(lang_code)
 
-    # Default to English if the system language is not available.
     if language_code in available_languages:
         current_language_index = available_languages.index(language_code)
     else:
@@ -50,7 +49,6 @@ def main():
     current_texts = load_texts(language)
 
     while True:
-        # Print ASCII art and version info each time the main menu is shown.
         print(current_texts['ascii_art'])
         print(version)
         print(current_texts['description'])
@@ -71,14 +69,11 @@ def main():
             choice = '1'
 
         if choice == '0':
-            # Switch language by cycling through the available languages.
             current_language_index = (current_language_index + 1) % len(available_languages)
             language = available_languages[current_language_index]
             current_texts = load_texts(language)
             continue
         elif choice == '3':
-            # Merge multiple JSON result files into one.
-            # This can be useful if the chat export was split into multiple parts.
             start_time = time.time()
             merged = merge_json_files(config.merge_folder, config.input_file, current_texts)
             elapsed_time = time.time() - start_time
@@ -87,12 +82,9 @@ def main():
             input(current_texts.get('press_enter_to_return', 'Press Enter to return to the main menu...'))
             continue
         elif choice == '1' or choice == '2':
-            # Choice 1: Analyze and print results
-            # Choice 2: Analyze and save to TXT and JSON
             save_json = True if choice == '2' else False
             input_file = config.input_file
             try:
-                # File size checks give warnings if the input is very large.
                 file_size_bytes = os.path.getsize(input_file)
                 file_size_mb = file_size_bytes / (1024 * 1024)
                 file_size_gb = file_size_bytes / (1024 * 1024 * 1024)
@@ -117,11 +109,8 @@ def main():
             if not config_choice:
                 config_choice = '1'
             if config_choice == '1':
-                # Use standard settings from config.py without modifications.
                 temp_config = vars(config).copy()
             elif config_choice == '2':
-                # Manually configure settings in the console.
-                # Allows user to change stop words, exclude bots, etc.
                 temp_config = configure_in_console(config, current_texts, is_personal_chat)
                 save_config_choice = input(current_texts['save_config_prompt']).strip().lower()
                 if save_config_choice in ('y', 'д'):
@@ -129,9 +118,7 @@ def main():
             else:
                 continue
 
-            # Allow user to specify a date range for analysis.
-            # This filters messages by date, which can be useful for large chats.
-            date_range_input = input(current_texts.get('date_range_prompt', "Enter date range in format 'DD.MM.YYYY-DD.MM.YYYY' or leave empty for all time: ")).strip()
+            date_range_input = input(current_texts.get('date_range_prompt')).strip()
             start_date = None
             end_date = None
             if date_range_input:
@@ -140,53 +127,56 @@ def main():
                     start_date = datetime.datetime.strptime(start_str.strip(), "%d.%m.%Y")
                     end_date = datetime.datetime.strptime(end_str.strip(), "%d.%m.%Y")
                     if end_date < start_date:
-                        print(current_texts.get('invalid_date_range', 'Invalid date range format.'))
+                        print(current_texts.get('invalid_date_range'))
                         start_date = None
                         end_date = None
                 except:
-                    print(current_texts.get('invalid_date_range', 'Invalid date range format.'))
+                    print(current_texts.get('invalid_date_range'))
                     start_date = None
                     end_date = None
 
             print(current_texts['start_analysis'])
             start_time = time.time()
 
-            # Pass the chosen language so that day and month names match the selected locale.
-            analysis_results, error_info = analyze_messages(
-                input_file, temp_config, current_texts, is_personal_chat, use_streaming=True,
-                start_date=start_date, end_date=end_date, language=language
-            )
+            if chat_type in ['public_channel', 'private_channel']:
+                analysis_results, error_info = analyze_channel(
+                    input_file, temp_config, current_texts, start_date=start_date, end_date=end_date, language=language
+                )
+            else:
+                analysis_results, error_info = analyze_chats(
+                    input_file, temp_config, current_texts, is_personal_chat, use_streaming=True,
+                    start_date=start_date, end_date=end_date, language=language
+                )
 
             if not analysis_results.get('total_messages', 0):
-                # If no messages found (either empty file or no messages in given date range).
                 if start_date and end_date:
-                    print(current_texts.get('no_messages_in_range', 'No messages found in the specified date range.'))
+                    print(current_texts.get('no_messages_in_range'))
                 else:
                     print(current_texts['no_messages'])
                 input(current_texts.get('press_enter_to_return', 'Press Enter to return to the main menu...'))
                 continue
+
+            if chat_type in ['public_channel', 'private_channel']:
+                print(current_texts['display_type'].format(chat_type))
 
             chat_name_raw = analysis_results['chat_name']
             chat_name = chat_name_raw.replace(' ', '_').replace('/', '_')
             timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
             output_filename = temp_config['output_filename_pattern'].replace('<chat_name>', chat_name).replace('<timestamp>', timestamp)
 
-            generate_text_report(analysis_results, temp_config, current_texts, output_filename, author_github_link, author_telegram_channel, is_personal_chat)
+            generate_text_report(analysis_results, temp_config, current_texts, output_filename, author_github_link, author_telegram_channel, is_personal_chat=(chat_type=='personal_chat'))
             if save_json:
                 json_output_filename = output_filename.replace('.txt', '.json')
                 generate_json_report(analysis_results, json_output_filename)
 
-            # Generate plots depending on whether it's a personal or group chat.
-            # For personal chats, show two users' message frequencies over time.
-            # For group chats, show total messages over time.
-            if is_personal_chat:
+            if chat_type == 'personal_chat':
                 plot_filename_template = output_filename.replace('.txt', '_plot_<year>.png')
                 generate_personal_chat_plots(analysis_results, plot_filename_template, temp_config, current_texts)
                 years = sorted(set(date.year for date in analysis_results['daily_user_messages'].keys()))
                 for year in years:
                     plot_filename = plot_filename_template.replace('<year>', str(year))
                     print(current_texts['communication_graph_saved'].format(plot_filename))
-            else:
+            elif chat_type not in ['public_channel', 'private_channel']:
                 plot_filename_template = output_filename.replace('.txt', '_group_plot_<year>.png')
                 generate_group_chat_plots(analysis_results, plot_filename_template, temp_config, current_texts)
                 years = sorted(set(date.year for date in analysis_results['date_messages'].keys()))
@@ -197,20 +187,21 @@ def main():
             elapsed_time = time.time() - start_time
             print(current_texts['processing_completed'].format(elapsed_time, output_filename))
 
-            # If some messages could not be processed, show a summary and possibly dump errors to a file.
             errors, unprocessed_messages, total_messages = error_info['errors'], error_info['unprocessed_messages'], analysis_results['total_messages']
             if unprocessed_messages > 0:
                 unprocessed_percentage = (unprocessed_messages / total_messages) * 100
                 if len(errors) > 10:
                     error_log_filename = f"error_logs_{chat_name}_{timestamp}.txt"
                     with open(error_log_filename, 'w', encoding='utf-8') as error_log:
-                        error_log.writelines(errors)
+                        for err in errors:
+                            error_log.write(err+"\n")
                     print(current_texts['unprocessed_messages'].format(unprocessed_percentage))
                     print(current_texts['error_count'].format(len(errors), error_log_filename))
                 else:
                     print(current_texts['unprocessed_messages'].format(unprocessed_percentage))
                     for error in errors:
                         print(error)
+
             if temp_config.get('show_author_links', True):
                 print()
                 print('⚡️')
